@@ -52,7 +52,7 @@ class ICMTSMTGuitarDataMono(Dataset):
         wet = None
         # apply effects 
         if self.pedal_dict is not None:
-            pedalboard, pedal_string_lists = get_pedal_board(self.pedal_dict)
+            pedalboard, pedal_string_lists = get_pedalboard_str(self.pedal_dict)
             wet = from_numpy(pedalboard(waveform.numpy(), sr, reset=False))
             board_string = ("<start> " + " <sep> ".join(pedal_string_lists) + " <end>").split(" ")
             wet = wet / wet.abs().max()
@@ -104,7 +104,7 @@ class ICMTSMTGuitarDataPoly(Dataset):
         wet = None
         # apply effects 
         if self.pedal_dict is not None:
-            pedalboard, pedal_string_lists = get_pedal_board(self.pedal_dict)
+            pedalboard, pedal_string_lists = get_pedalboard_str(self.pedal_dict)
             wet = from_numpy(pedalboard(waveform.numpy(), sr, reset=False))
             board_string = ("<start> " + " <sep> ".join(pedal_string_lists) + " <end>").split(" ")
             wet = wet / wet.abs().max()

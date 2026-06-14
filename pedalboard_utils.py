@@ -52,7 +52,33 @@ def create_bins(pedal_dict: dict, step_size: int) -> dict:
     bin_dict["step_size"] = step_size
     return bin_dict
 
-def get_pedal_board(pedal_dict_binned: dict, shuffle: bool=True) -> Tuple[Pedalboard, List[str]]:
+
+def get_pedalboard(pedal_dict_binned, shuffle: bool=True) -> Pedalboard:
+    board = []
+
+    for name, param_dict in pedal_dict_binned.items(): 
+        if name == "step_size": 
+            continue
+        dropout = param_dict['dropout']
+        
+        if random.random() > dropout:  
+            pedal_class = param_dict['pedal']
+            params = param_dict['params']
+            
+            args = {}
+            selections = []
+            for param, bins in params.items(): 
+                i = random.randint(0, step_size - 1)
+                args[param] = bins[i] 
+            board.append(pedal_class(**args))
+    if shuffle: 
+        random.shuffle(board)
+
+    board = Pedalboard(board)
+        
+    return board
+
+def get_pedalboard_str(pedal_dict_binned: dict, shuffle: bool=True) -> Tuple[Pedalboard, List[str]]:
     board = []
     board_string = []
     step_size = pedal_dict_binned["step_size"]
@@ -76,8 +102,9 @@ def get_pedal_board(pedal_dict_binned: dict, shuffle: bool=True) -> Tuple[Pedalb
             board.append(pedal_class(**args))
     if shuffle: 
         combined = list(zip(board, board_string))
-        random.shuffle(combined)
-        board, board_string = zip(*combined)
+        if len(combined): 
+            random.shuffle(combined)
+            board, board_string = zip(*combined)
 
     board = Pedalboard(board)
         
@@ -133,14 +160,23 @@ pedal_dict = {
     "reverb": {
         "pedal": Reverb,
         "params": {
-            "room_size": {"min": 0.1, "max": 1.0, "arange": pow_range}, 
-            "damping":   {"min": 0.0, "max": 1.0, "arange": lin_range}, 
-            "wet_level": {"min": 0.0, "max": 1.0, "arange": log_range}, 
-            "dry_level": {"min": 0.0, "max": 1.0, "arange": log_range}, 
-            "width":     {"min": 0.0, "max": 1.0, "arange": lin_range}  
+            "room_size": {"min": 0.1,  "max": 1.0, "arange": pow_range}, 
+            "damping":   {"min": 0.01, "max": 1.0, "arange": lin_range}, 
+            "wet_level": {"min": 0.01, "max": 1.0, "arange": log_range}, 
+            "dry_level": {"min": 0.01, "max": 1.0, "arange": log_range}, 
+            "width":     {"min": 0.01, "max": 1.0, "arange": lin_range}  
         },
         "dropout": 0.5
     }
 }
 
 pedal_dict_binned = create_bins(pedal_dict, step_size)
+
+
+"""
+    Vocabulary for training
+"""
+
+class PedalVocal(object): 
+    def __init__(self, pedal_dict_binned): 
+        pass 
