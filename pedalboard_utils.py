@@ -114,9 +114,9 @@ def get_pedalboard_str(pedal_dict_binned: dict, shuffle: bool=True) -> Tuple[Ped
     Constants
 """
     
-step_size = 10
+STEP_SIZE = 10
 
-pedal_dict = {
+PEDAL_DICT = {
     "compressor": {
         "pedal": Compressor, 
         "params": {
@@ -170,13 +170,57 @@ pedal_dict = {
     }
 }
 
-pedal_dict_binned = create_bins(pedal_dict, step_size)
+PEDAL_DICT_BINNED = create_bins(PEDAL_DICT, STEP_SIZE)
 
 
 """
     Vocabulary for training
 """
 
-class PedalVocal(object): 
-    def __init__(self, pedal_dict_binned): 
-        pass 
+class PedalVocab(object): 
+    def __init__(self, padding_idx: int = 0): 
+        self.token_to_num = {}
+        self.num_to_token = {}
+        self.initialized = False
+        self.n = 0
+        self.padding_idx = padding_idx
+
+    def __len__(self): 
+        return self.n 
+
+    def initialize(self, pedal_dict: dict, step_size: int) -> None: 
+        def _add_token(token):
+            self.n += 1
+            self.token_to_num[token] = self.n 
+            self.num_to_token[self.n] = token 
+
+        for i in range(step_size): 
+            _add_token(str(i + 1))
+            
+        for name, pedal in pedal_dict.items():
+            _add_token(name)
+            
+            for param_name in pedal["params"]:
+                _add_token(f"{name}:{param_name}")
+
+        _add_token("<start_order>")
+        _add_token("<start_params>")
+        _add_token("<sep>")
+        _add_token("<end>")
+        self.initialized = True
+        
+    def tokenize(self, pedals_str: List[str]) -> Tuple: 
+        assert self.initialized, "Must initialize the vocabulary first!"
+        
+        tokens = ["<start_order>"] 
+        params = ["<start_params>"]
+        for pedal_str in pedals_str: 
+            pedal_tokens = pedal_str.split(" ")
+            tokens.append(pedal_tokens[0])
+            params.extend(pedal_tokens[1:]) 
+            params.append("<sep>")
+        tokens.extend(params) 
+        params.append("<end>")
+
+        return tokens
+            
