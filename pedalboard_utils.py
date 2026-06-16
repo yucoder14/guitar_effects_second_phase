@@ -2,6 +2,8 @@ import numpy as np
 import random
 import math
 
+from functools import partial
+
 from pedalboard import Pedalboard
 from pedalboard import Chorus, Distortion, Phaser # guitar-style effects
 from pedalboard import Compressor # dynamic range effects
@@ -9,6 +11,9 @@ from pedalboard import Reverb # spacial effects
 
 # probably get rid of this later because I will end up using python3.9+
 from typing import Tuple, List
+
+from torch import tensor
+from torch import stack
 
 """
     Helper functions 
@@ -97,7 +102,7 @@ def get_pedalboard_str(pedal_dict_binned: dict, shuffle: bool=True) -> Tuple[Ped
             for param, bins in params.items(): 
                 i = random.randint(0, step_size - 1)
                 args[param] = bins[i] 
-                selections.extend([param, str(i)])
+                selections.extend([f"{name}:{param}", str(i)])
             board_string.append(" ".join([name] + selections))
             board.append(pedal_class(**args))
     if shuffle: 
@@ -184,9 +189,20 @@ class PedalVocab(object):
         self.initialized = False
         self.n = 0
         self.padding_idx = padding_idx
+        self.token_to_num[str(padding_idx)] = padding_idx
 
     def __len__(self): 
         return self.n 
+        
+    def to_num(self, token_str: List[str]) -> List[int]: 
+        return list(map(lambda tok: self.token_to_num[tok], token_str))
+        
+    def to_str(self, token_int: List[int]) -> List[int]: 
+        tokens = []
+        for num in token_int: 
+            if num != self.padding_idx: 
+                tokens.append(self.num_to_token[num])
+        return tokens
 
     def initialize(self, pedal_dict: dict, step_size: int) -> None: 
         def _add_token(token):
@@ -204,23 +220,47 @@ class PedalVocab(object):
                 _add_token(f"{name}:{param_name}")
 
         _add_token("<start_order>")
-        _add_token("<start_params>")
         _add_token("<sep>")
         _add_token("<end>")
         self.initialized = True
         
-    def tokenize(self, pedals_str: List[str]) -> Tuple: 
+    def tokenize(self, pedals_str: List[str]) -> List[str]: 
         assert self.initialized, "Must initialize the vocabulary first!"
         
         tokens = ["<start_order>"] 
-        params = ["<start_params>"]
+        params = []
         for pedal_str in pedals_str: 
             pedal_tokens = pedal_str.split(" ")
             tokens.append(pedal_tokens[0])
+            params.append("<sep>") 
             params.extend(pedal_tokens[1:]) 
-            params.append("<sep>")
         tokens.extend(params) 
-        params.append("<end>")
+        tokens.append("<end>")
 
         return tokens
-            
+        
+VOCAB = PedalVocab()
+VOCAB.initialize(PEDAL_DICT, STEP_SIZE)
+NUM_VOCAB = len(VOCAB)
+MAX_TOKEN_LEN = 5 + 20 * 2 + 2 + 5 # for the case when all effects are present num_types + num_parameters * 2 + num_start_end + num_sep
+
+
+"""
+    Collate function to pad the tokens
+"""
+
+def collate_to_len(max_token_len:int, batch: List[Tuple]) -> Tuple: 
+    assert isinstance(batch, list)
+    dry = [item[0][0] for item in batch] 
+    wet = [item[1][0] for item in batch] 
+
+    # this is horrible
+    target = [tokens + [0] * (max_token_len - len(tokens)) for item in batch if(tokens:=VOCAB.to_num(VOCAB.tokenize(item[2])))]
+
+    dry_stacked = stack(dry)
+    wet_stacked = stack(wet)
+    target_stacked = np.stack(target)
+
+    return dry_stacked, wet_stacked, tensor(target_stacked)
+
+collate = partial(collate_to_len, MAX_TOKEN_LEN)

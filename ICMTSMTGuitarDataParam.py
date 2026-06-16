@@ -12,7 +12,7 @@ from typing import Tuple, List
 # it also offers smaples with effects applied, but I'll be working mostly with 
 # NoFx samples
 
-IDMT = Path("/home/yuc3/guitar_effects/IDMT-SMT-AUDIO-EFFECTS/IDMT-SMT-AUDIO-EFFECTS")
+IDMT = Path("/home/yuc3/IDMT-SMT-AUDIO-EFFECTS/IDMT-SMT-AUDIO-EFFECTS")
 
 class ICMTSMTGuitarDataMono(Dataset): 
     def __init__(self, pedal_dict: dict=None, target_length_seconds:float =2.0):
