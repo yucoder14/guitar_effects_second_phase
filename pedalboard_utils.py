@@ -10,7 +10,7 @@ from pedalboard import Compressor # dynamic range effects
 from pedalboard import Reverb # spacial effects 
 
 # probably get rid of this later because I will end up using python3.9+
-from typing import Tuple, List
+from typing import Tuple, List, Union
 
 from torch import tensor
 from torch import stack
@@ -100,8 +100,8 @@ def get_pedalboard_str(pedal_dict_binned: dict, shuffle: bool=True) -> Tuple[Ped
             args = {}
             selections = []
             for param, bins in params.items(): 
-                i = random.randint(0, step_size - 1)
-                args[param] = bins[i] 
+                i = random.randint(1, step_size)
+                args[param] = bins[i - 1] 
                 selections.extend([f"{name}:{param}", str(i)])
             board_string.append(" ".join([name] + selections))
             board.append(pedal_class(**args))
@@ -193,6 +193,12 @@ class PedalVocab(object):
 
     def __len__(self): 
         return self.n 
+
+    def get(self, token: Union[str ,int]) -> Union[int, str]: 
+        if isinstance(token, str): 
+            return self.token_to_num[token]
+        if isinstance(token, int): 
+            return self.num_to_token[token]
         
     def to_num(self, token_str: List[str]) -> List[int]: 
         return list(map(lambda tok: self.token_to_num[tok], token_str))
@@ -220,29 +226,36 @@ class PedalVocab(object):
                 _add_token(f"{name}:{param_name}")
 
         _add_token("<start_order>")
+        _add_token("<end_order>")
         _add_token("<sep>")
-        _add_token("<end>")
+        _add_token("<start_param>")
+        _add_token("<end_param>")
         self.initialized = True
         
     def tokenize(self, pedals_str: List[str]) -> List[str]: 
         assert self.initialized, "Must initialize the vocabulary first!"
         
         tokens = ["<start_order>"] 
-        params = []
+        params = ["<start_param>"]
         for pedal_str in pedals_str: 
             pedal_tokens = pedal_str.split(" ")
             tokens.append(pedal_tokens[0])
-            params.append("<sep>") 
             params.extend(pedal_tokens[1:]) 
+            params.append("<sep>") 
+        # if there are param, pop the last <sep> token
+        if len(params) > 1: params.pop()
+            
+        tokens.append("<end_order>")
+        params.append("<end_param>")
+        
         tokens.extend(params) 
-        tokens.append("<end>")
 
         return tokens
         
 VOCAB = PedalVocab()
 VOCAB.initialize(PEDAL_DICT, STEP_SIZE)
 NUM_VOCAB = len(VOCAB)
-MAX_TOKEN_LEN = 5 + 20 * 2 + 2 + 5 # for the case when all effects are present num_types + num_parameters * 2 + num_start_end + num_sep
+MAX_TOKEN_LEN = 64 # for the case when all effects are present num_types + num_parameters * 2 + num_start_end + num_sep
 
 
 """
@@ -255,7 +268,8 @@ def collate_to_len(max_token_len:int, batch: List[Tuple]) -> Tuple:
     wet = [item[1][0] for item in batch] 
 
     # this is horrible
-    target = [tokens + [0] * (max_token_len - len(tokens)) for item in batch if(tokens:=VOCAB.to_num(VOCAB.tokenize(item[2])))]
+    target = [tokens + [0] * (max_token_len - len(tokens)) for item in batch
+              if(tokens:=VOCAB.to_num(VOCAB.tokenize(item[2])))]
 
     dry_stacked = stack(dry)
     wet_stacked = stack(wet)
